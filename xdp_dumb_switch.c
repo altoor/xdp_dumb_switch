@@ -135,22 +135,6 @@ void __if_detach(struct xdp_status *xdp_status, int id)
 	xdp_status->rx_nr--;
 }
 
-void cleanup(void)
-{
-	int id;
-
-	if (!global_status->cleanup)
-		return;
-
-	for (id = MAX_IF - 1; id >= 0; --id) {
-		if (!global_status->rx_ports[id])
-			continue;
-
-		__if_stats(global_status, id);
-		__if_detach(global_status, id);
-	}
-}
-
 void init(struct xdp_status *xdp_status)
 {
 	struct bpf_prog_load_attr prog_load_attr = {
@@ -179,7 +163,6 @@ void init(struct xdp_status *xdp_status)
 	xdp_status->interrupted = false;
 	global_status = xdp_status;
 	signal(SIGINT, sigint_handler);
-	atexit(cleanup);
 }
 
 int __lookup_if_by_name(const int *list, const char *name, int *ifindex)
@@ -392,6 +375,22 @@ void rule_del(struct xdp_status *xdp_status, const char *in_dev,
 		key.saddr, xdp_status->if_status[id].rule_nr);
 }
 
+void cleanup(struct xdp_status *xdp_status)
+{
+	int id;
+
+	if (!xdp_status->cleanup)
+		return;
+
+	for (id = MAX_IF - 1; id >= 0; --id) {
+		if (!xdp_status->rx_ports[id])
+			continue;
+
+		__if_stats(xdp_status, id);
+		__if_detach(xdp_status, id);
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	struct xdp_status xdp_status;
@@ -454,5 +453,7 @@ int main(int argc, char *argv[])
 			printf("unknown command %s\n", tokens[0]);
 		}
 	}
+
+	cleanup(&xdp_status);
 	return 0;
 }
