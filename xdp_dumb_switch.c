@@ -48,6 +48,7 @@ struct xdp_status {
 	int prog_fd;
 	struct bpf_object *obj;
 	bool interrupted;
+	bool cleanup;
 };
 
 struct xdp_status *global_status;
@@ -60,7 +61,7 @@ static void sigint_handler(int signum)
 
 void __if_stats(struct xdp_status *xdp_status, int id)
 {
-	unsigned int nr_cpus = sysconf(_SC_NPROCESSORS_ONLN);
+	unsigned int nr_cpus = sysconf(_SC_NPROCESSORS_CONF);
 	struct if_status *ifs = &xdp_status->if_status[id];
 	unsigned long drop_pkts = 0, drop_bytes = 0;
 	unsigned long rx_pkts = 0, rx_bytes = 0;
@@ -137,7 +138,10 @@ void cleanup(void)
 {
 	int id;
 
-	for (id = MAX_IF - 1; id >= 0 && global_status->rx_ports[id]; --id) {
+	if (!global_status->cleanup)
+		return;
+
+	for (id = MAX_IF - 1; id >= 0; --id) {
 		if (!global_status->rx_ports[id])
 			continue;
 
@@ -169,6 +173,7 @@ void init(struct xdp_status *xdp_status)
 		error(1, errno, "can't load tx_port");
 	xdp_status->maps[MAP_TX] = bpf_map__fd(map);
 
+	xdp_status->cleanup = true;
 	xdp_status->interrupted = false;
 	global_status = xdp_status;
 	signal(SIGINT, sigint_handler);
@@ -412,6 +417,8 @@ int main(int argc, char *argv[])
 
 		if (!strcmp(tokens[0], "quit")) {
 			break;
+		} else if (!strcmp(tokens[0], "nocleanup")) {
+			xdp_status.cleanup = false;
 		} else if (!strcmp(tokens[0], "attach")) {
 			if (ntoken != 2) {
 				fprintf(stderr, "syntax: attach <device>\n");
