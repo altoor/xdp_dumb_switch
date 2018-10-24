@@ -39,6 +39,7 @@ struct if_status {
 };
 
 struct xdp_status {
+	int cpu_nr;
 	int rx_ports[MAX_IF];
 	int rx_nr;
 	int tx_ports[MAX_IF];
@@ -61,11 +62,10 @@ static void sigint_handler(int signum)
 
 void __if_stats(struct xdp_status *xdp_status, int id)
 {
-	unsigned int nr_cpus = sysconf(_SC_NPROCESSORS_CONF);
 	struct if_status *ifs = &xdp_status->if_status[id];
+	struct egress_entry entry[xdp_status->cpu_nr];
 	unsigned long drop_pkts = 0, drop_bytes = 0;
 	unsigned long rx_pkts = 0, rx_bytes = 0;
-	struct egress_entry entry[nr_cpus];
 	struct egress_key key;
 	struct rule *rule;
 	int i;
@@ -80,7 +80,7 @@ void __if_stats(struct xdp_status *xdp_status, int id)
 			continue;
 		}
 
-		for (i = 0; i < nr_cpus; ++i) {
+		for (i = 0; i < xdp_status->cpu_nr; ++i) {
 			rx_pkts += entry[i].pkts;
 			rx_bytes += entry[i].bytes;
 		}
@@ -91,7 +91,7 @@ void __if_stats(struct xdp_status *xdp_status, int id)
 		fprintf(stderr, "no stats for rule %x %x\n",
 		        key.saddr, key.ifindex);
 	} else {
-		for (i = 0; i < nr_cpus; ++i) {
+		for (i = 0; i < xdp_status->cpu_nr; ++i) {
 			drop_pkts = entry[i].pkts;
 			drop_bytes = entry[i].pkts;
 		}
@@ -173,6 +173,7 @@ void init(struct xdp_status *xdp_status)
 		error(1, errno, "can't load tx_port");
 	xdp_status->maps[MAP_TX] = bpf_map__fd(map);
 
+	xdp_status->cpu_nr = sysconf(_SC_NPROCESSORS_CONF);
 	xdp_status->cleanup = true;
 	xdp_status->interrupted = false;
 	global_status = xdp_status;
@@ -199,7 +200,7 @@ int __lookup_if_by_name(const int *list, const char *name, int *ifindex)
 
 void if_attach(struct xdp_status *xdp_status, const char *name)
 {
-	struct egress_entry entry;
+	struct egress_entry entry[xdp_status->cpu_nr];
 	struct egress_key key;
 	int id;
 
@@ -218,10 +219,8 @@ void if_attach(struct xdp_status *xdp_status, const char *name)
 		return;
 
 	key.saddr = 0;
-	entry.pkts = 0;
-	entry.bytes = 0;
-	entry.ifindex = 0;
-	if (bpf_map_update_elem(xdp_status->maps[MAP_EGRESS], &key, &entry,
+	bzero(entry, sizeof(entry));
+	if (bpf_map_update_elem(xdp_status->maps[MAP_EGRESS], &key, entry,
 				BPF_ANY)) {
 		fprintf(stderr, "can't init stats for interface %s:%d: %d:%s\n",
 		        name, key.ifindex, errno, strerror(errno));
@@ -306,10 +305,10 @@ struct rule *__rule_lookup(struct xdp_status *xdp_status, const char *in_dev,
 void rule_add(struct xdp_status *xdp_status, const char *in_dev,
 	      const char *saddr, const char *out_dev)
 {
-	struct egress_entry entry;
-	struct rule *rule;
+	struct egress_entry entry[xdp_status->cpu_nr];
 	struct egress_key key;
-	int id;
+	struct rule *rule;
+	int id, i;
 
 	rule = __rule_lookup(xdp_status, in_dev, saddr, &id, &key);
 	if (rule) {
@@ -320,22 +319,23 @@ void rule_add(struct xdp_status *xdp_status, const char *in_dev,
 	if (id == -1)
 		return;
 
-	entry.ifindex = if_nametoindex(out_dev);
-	if (!entry.ifindex) {
+	bzero(entry, sizeof(entry));
+	entry[0].ifindex = if_nametoindex(out_dev);
+	for (i = 1; i < xdp_status->cpu_nr; i++)
+		entry[i].ifindex = entry[0].ifindex;
+	if (!entry[0].ifindex) {
 		fprintf(stderr, "Can't find egress interface %s\n", out_dev);
 		return;
 	}
 
-	if (bpf_map_update_elem(xdp_status->maps[MAP_TX], &entry.ifindex,
-				&entry.ifindex, BPF_ANY)) {
+	if (bpf_map_update_elem(xdp_status->maps[MAP_TX], &entry[0].ifindex,
+				&entry[0].ifindex, BPF_ANY)) {
 		fprintf(stderr, "can't add tx port %s:%d %d:%s\n", out_dev,
-		        entry.ifindex, errno, strerror(errno));
+		        entry[0].ifindex, errno, strerror(errno));
 		return;
 	}
 
-	entry.pkts = 0;
-	entry.bytes = 0;
-	if (bpf_map_update_elem(xdp_status->maps[MAP_EGRESS], &key, &entry,
+	if (bpf_map_update_elem(xdp_status->maps[MAP_EGRESS], &key, entry,
 	                        BPF_ANY)) {
 		fprintf(stderr, "Can't add rule %x:%x %d:%s\n", key.ifindex,
 		        key.saddr, errno, strerror(errno));
@@ -353,7 +353,7 @@ void rule_add(struct xdp_status *xdp_status, const char *in_dev,
 	xdp_status->if_status[id].list = rule;
 	xdp_status->if_status[id].rule_nr++;
 	printf("added rule %x:%x -> %x, if rule cnt %d\n", key.ifindex,
-		key.saddr, entry.ifindex, xdp_status->if_status[id].rule_nr);
+		key.saddr, entry[0].ifindex, xdp_status->if_status[id].rule_nr);
 }
 
 void rule_del(struct xdp_status *xdp_status, const char *in_dev,
