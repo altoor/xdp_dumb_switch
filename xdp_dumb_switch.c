@@ -110,8 +110,8 @@ void __if_detach(struct xdp_status *xdp_status, int id)
 	for (rule = xdp_status->if_status[id].list; rule; rule = next) {
 		key.saddr = rule->saddr;
 		if (bpf_map_delete_elem(xdp_status->maps[MAP_EGRESS], &key)) {
-			fprintf(stderr, "can't delete rule %x:%x\n",
-			        key.ifindex, key.saddr);
+			fprintf(stderr, "can't delete rule %x:%x %d %s\n",
+			        key.ifindex, key.saddr, errno, strerror(errno));
 		}
 		next = rule->next;
 		free(rule);
@@ -120,7 +120,8 @@ void __if_detach(struct xdp_status *xdp_status, int id)
 
 	key.saddr = 0;
 	if (bpf_map_delete_elem(xdp_status->maps[MAP_EGRESS], &key)) {
-		fprintf(stderr, "can't delete stats for if %x\n", key.ifindex);
+		fprintf(stderr, "can't delete stats for if %x %d:%s\n",
+		        key.ifindex, errno, strerror(errno));
 	}
 	bpf_set_link_xdp_fd(global_status->rx_ports[id], -1, 0);
 
