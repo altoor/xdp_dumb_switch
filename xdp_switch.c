@@ -39,6 +39,7 @@ static inline int parse_ipv4(void *data, __u64 nh_off, void *data_end,
 
 	if (iph + 1 > data_end)
 		return 0;
+
 	*src = iph->saddr;
 	*dest = iph->daddr;
 	return iph->protocol;
@@ -48,10 +49,10 @@ int xdp_router_ipv4_prog(struct xdp_md *ctx)
 {
 	void *data_end = (void *)(long)ctx->data_end;
 	void *data = (void *)(long)ctx->data;
-	__be32 src_ip = 0, dest_ip = 0;
 	struct egress_entry *entry;
 	struct ethhdr *eth = data;
 	struct egress_key key;
+	__be32 dest_ip = 0;
 	__u16 h_proto;
 	__u64 nh_off;
 	int ipproto;
@@ -75,6 +76,7 @@ int xdp_router_ipv4_prog(struct xdp_md *ctx)
 	if (h_proto != __constant_htons(ETH_P_IP))
 		goto drop;
 
+	key.saddr = 0;
 	ipproto = parse_ipv4(data, nh_off, data_end, &key.saddr, &dest_ip);
 	key.ifindex = ctx->ingress_ifindex;
 	entry = bpf_map_lookup_elem(&egress_map, &key);

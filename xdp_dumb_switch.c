@@ -146,6 +146,7 @@ void init(struct xdp_status *xdp_status)
 	};
 	struct bpf_map *map;
 
+	bzero(xdp_status, sizeof(*xdp_status));
 	if (bpf_prog_load_xattr(&prog_load_attr, &xdp_status->obj,
 				&xdp_status->prog_fd))
 		error(1, errno, "can't load file %s", prog_load_attr.file);
