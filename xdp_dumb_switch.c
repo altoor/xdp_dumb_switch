@@ -21,6 +21,7 @@
 #define STR(__x) #__x
 #define XSTR(__x) STR(__x)
 #define MAX_TOKEN	40
+#define MAX_LINE	(4 * (MAX_TOKEN + 1))
 #define MAX_IF		16
 
 #define MAP_EGRESS	0
@@ -381,31 +382,58 @@ void rule_del(struct xdp_status *xdp_status, const char *in_dev,
 int main(int argc, char *argv[])
 {
 	struct xdp_status xdp_status;
-	char tokens[4][MAX_TOKEN+1];
+	char tokens[4][MAX_TOKEN + 1];
+	char linebuf[MAX_LINE];
 	char *line;
 
 	init(&xdp_status);
 
-	while ((line = readline(">> ")) && !xdp_status.interrupted) {
-		int ntoken = sscanf(line,"%"XSTR(MAX_TOKEN)"s %"XSTR(MAX_TOKEN)"s "
+	for (;;) {
+		int ntoken;
+
+		printf(">> ");
+		line = fgets(linebuf, MAX_LINE - 1, stdin);
+		if  (xdp_status.interrupted || !line)
+			break;
+
+		ntoken = sscanf(line,"%"XSTR(MAX_TOKEN)"s %"XSTR(MAX_TOKEN)"s "
 				    "%"XSTR(MAX_TOKEN)"s %"XSTR(MAX_TOKEN)"s",
 				    tokens[0], tokens[1],
 				    tokens[2], tokens[3]);
-		free(line);
 		if (ntoken < 1)
 			continue;
 
 		if (!strcmp(tokens[0], "quit")) {
 			break;
 		} else if (!strcmp(tokens[0], "attach")) {
+			if (ntoken != 2) {
+				fprintf(stderr, "syntax: attach <device>\n");
+				continue;
+			}
 			if_attach(&xdp_status, tokens[1]);
 		} else if (!strcmp(tokens[0], "detach")) {
+			if (ntoken != 2) {
+				fprintf(stderr, "syntax: detach <device>\n");
+				continue;
+			}
 			if_detach(&xdp_status, tokens[1]);
 		} else if (!strcmp(tokens[0], "stats")) {
+			if (ntoken != 2) {
+				fprintf(stderr, "syntax: stats <device>\n");
+				continue;
+			}
 			if_stats(&xdp_status, tokens[1]);
 		} else if (!strcmp(tokens[0], "add")) {
+			if (ntoken != 4) {
+				fprintf(stderr, "syntax: add <in dev> <ip> <out dev>\n");
+				continue;
+			}
 			rule_add(&xdp_status, tokens[1], tokens[2], tokens[3]);
 		} else if (!strcmp(tokens[0], "del")) {
+			if (ntoken != 3) {
+				fprintf(stderr, "syntax: del <in dev> <ip>\n");
+				continue;
+			}
 			rule_del(&xdp_status, tokens[1], tokens[2]);
 		} else {
 			printf("unknown command %s\n", tokens[0]);
