@@ -3,13 +3,13 @@
 
 struct egress_key {
 	__be32 saddr;
-	int ifindex;
+	__s32 ifindex;
 };
 
 struct egress_entry {
-	unsigned long pkts;
-	unsigned long bytes;
-	int ifindex;
+	__u64 pkts;
+	__u64 bytes;
+	__s32 ifindex;
 };
 
 #endif

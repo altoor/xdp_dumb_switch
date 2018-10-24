@@ -78,6 +78,9 @@ int xdp_router_ipv4_prog(struct xdp_md *ctx)
 
 	key.saddr = 0;
 	ipproto = parse_ipv4(data, nh_off, data_end, &key.saddr, &dest_ip);
+	if (!ipproto)
+		goto drop;
+
 	key.ifindex = ctx->ingress_ifindex;
 	entry = bpf_map_lookup_elem(&egress_map, &key);
 	if (!entry)
@@ -93,7 +96,9 @@ drop:
 	entry = bpf_map_lookup_elem(&egress_map, &key);
 	if (entry) {
 		entry->pkts++;
-		entry->bytes++;
+		entry->bytes += ctx->data_end - ctx->data;
 	}
 	return XDP_DROP;
 }
+
+char _license[] __attribute__ ((section("license"), used)) = "GPL";
