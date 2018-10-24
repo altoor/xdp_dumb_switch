@@ -36,7 +36,7 @@ all: $(BIN)
 xdp_dumb_switch: xdp_dumb_switch.c $(BPFOBJ)
 
 $(BPFOBJ): force
-	$(MAKE) -C $(BPFDIR) OUTPUT=$(OUTPUT)/
+	$(MAKE) -C $(BPFDIR) OUTPUT=$(BPFDIR)/
 
 xdp_switch.o: xdp_switch.c
 	$(CLANG) $(CLANG_FLAGS) -c $< -o - |      \
