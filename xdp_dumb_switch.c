@@ -60,33 +60,40 @@ static void sigint_handler(int signum)
 
 void __if_stats(struct xdp_status *xdp_status, int id)
 {
+	unsigned int nr_cpus = sysconf(_SC_NPROCESSORS_ONLN);
 	struct if_status *ifs = &xdp_status->if_status[id];
 	unsigned long drop_pkts = 0, drop_bytes = 0;
 	unsigned long rx_pkts = 0, rx_bytes = 0;
-	struct egress_entry entry;
+	struct egress_entry entry[nr_cpus];
 	struct egress_key key;
 	struct rule *rule;
+	int i;
 
 	key.ifindex = xdp_status->rx_ports[id];
 	for (rule = ifs->list; rule; rule = rule->next) {
 		key.saddr = rule->saddr;
 		if (bpf_map_lookup_elem(xdp_status->maps[MAP_EGRESS], &key,
-		    &entry)) {
+		    entry)) {
 			fprintf(stderr, "no stats for rule %x %x\n",
 			        key.saddr, key.ifindex);
 			continue;
 		}
-		rx_pkts += entry.pkts;
-		rx_bytes += entry.bytes;
+
+		for (i = 0; i < nr_cpus; ++i) {
+			rx_pkts += entry[i].pkts;
+			rx_bytes += entry[i].bytes;
+		}
 	}
 
 	key.saddr = 0;
-	if (bpf_map_lookup_elem(xdp_status->maps[MAP_EGRESS], &key, &entry)) {
+	if (bpf_map_lookup_elem(xdp_status->maps[MAP_EGRESS], &key, entry)) {
 		fprintf(stderr, "no stats for rule %x %x\n",
 		        key.saddr, key.ifindex);
 	} else {
-		drop_pkts = entry.pkts;
-		drop_bytes = entry.pkts;
+		for (i = 0; i < nr_cpus; ++i) {
+			drop_pkts = entry[i].pkts;
+			drop_bytes = entry[i].pkts;
+		}
 	}
 	printf("rx %lu:%lu drop %lu:%lu\n", rx_pkts, rx_bytes, drop_pkts,
 	       drop_bytes);
