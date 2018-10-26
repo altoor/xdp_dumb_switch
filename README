@@ -1,0 +1,48 @@
+* Building
+
+You need the complete Linux sources to build this, any
+version above 4.18 should work. Possibly even older ones
+(untested).
+
+The Makefile will look for them in the usual location, but
+some distros do not provide the full tree in the src package,
+so you may want to download the sources from:
+
+https://mirrors.edge.kernel.org/pub/linux/kernel/v4.x/
+
+unpackage them somewhere and the run
+
+KDIR=<your tree location> make
+
+* Running
+
+./xdp_dump_switch
+
+you can comfigure the switch writing the commands:
+* the it's standard input
+* on the xdp_dumb_switch_ctl unix socket it creates in the
+  running directory.
+
+Available commands are:
+- attach <nic>
+  the switch will process the ingress traffic from such NIC,
+  attaching an XDP program to it
+- add <in nic> <src ip> <out nic>
+  create a forwarding rule, matching the ip packets with the
+  specified source from <in nic> and forwarding them to
+  <out nic>
+- stats <nic>
+- quit
+  guess what?
+- detach <nic>
+  guess what?
+- del <in nic> <src ip>
+  guess what?
+
+* FAQ
+
+Q: This is useless!
+A: Almost. But you can run a PVP test using xdp_dumb_switch as
+   backend with a varying number of L3 flows. And you can still
+   patch it to something more interesting.
+

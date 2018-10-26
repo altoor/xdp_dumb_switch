@@ -161,7 +161,7 @@ void init(struct xdp_status *xdp_status)
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_UNIX;
-	strncpy(addr.sun_path, "xdp_dump_switch_ctl", sizeof(addr.sun_path)-1);
+	strncpy(addr.sun_path, "xdp_dumb_switch_ctl", sizeof(addr.sun_path)-1);
 	unlink(addr.sun_path);
 
 	if (bind(xdp_status->ctr_socket, (struct sockaddr*)&addr,
